@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: payments
+      POSTGRES_PASSWORD: payments
+      POSTGRES_DB: payments
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mock-api:
+    build:
+      context: .
+      dockerfile: mock_api/Dockerfile
+    ports:
+      - "8001:8001"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - mock-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://payments:payments@db:5432/payments
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_FAKE_LLM: "true"
+      TRANSACTION_API_BASE_URL: http://mock-api:8001
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+
+volumes:
+  postgres_data:
